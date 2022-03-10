@@ -18,11 +18,16 @@ Expect<AST::InstrView::iterator>
 Executor::enterFunction(Runtime::StoreManager &StoreMgr,
                         Runtime::StackManager &StackMgr,
                         const Runtime::Instance::FunctionInstance &Func,
-                        const AST::InstrView::iterator From) {
+                        const AST::InstrView::iterator RetIt,
+                        const bool IsTailCall [[maybe_unused]]) {
+  // RetIt: the return position if the entered function returns.
+
+  // Check if the interruption occurs.
   if (unlikely(StopToken.exchange(0, std::memory_order_relaxed))) {
     spdlog::error(ErrCode::Interrupted);
     return Unexpect(ErrCode::Interrupted);
   }
+
   // Get function type
   const auto &FuncType = Func.getFuncType();
   const uint32_t ArgsN = static_cast<uint32_t>(FuncType.getParamTypes().size());
@@ -43,6 +48,14 @@ Executor::enterFunction(Runtime::StoreManager &StoreMgr,
         MemoryInst = *Res;
       }
     }
+
+    /*
+    StackMgr.pushFrame(Func.getModule(), // Module address
+                       RetIt - 1,         // Return PC
+                       0,                // No Arguments in stack
+                       RetsN             // Returns num
+    );
+    */
 
     if (Stat) {
       // Check host function cost.
@@ -82,11 +95,11 @@ Executor::enterFunction(Runtime::StoreManager &StoreMgr,
     }
 
     // For host function case, the continuation will be the next.
-    return From;
+    return RetIt;
   } else if (Func.isCompiledFunction()) {
     // Compiled function case: Push frame with locals and args.
     StackMgr.pushFrame(Func.getModule(), // Module address
-                       From - 1,         // Return PC
+                       RetIt - 1,        // Return PC
                        0,                // No Arguments in stack
                        RetsN             // Returns num
     );
@@ -129,7 +142,7 @@ Executor::enterFunction(Runtime::StoreManager &StoreMgr,
 
     StackMgr.popFrame();
     // For compiled function case, the continuation will be the next.
-    return From;
+    return RetIt;
   } else {
     const uint32_t LocalN = std::accumulate(
         Func.getLocals().begin(), Func.getLocals().end(), UINT32_C(0),
@@ -138,7 +151,7 @@ Executor::enterFunction(Runtime::StoreManager &StoreMgr,
         });
     // Native function case: Push frame with locals and args.
     StackMgr.pushFrame(Func.getModule(), // Module address
-                       From - 1,         // Return PC
+                       RetIt - 1,        // Return PC
                        ArgsN + LocalN,   // Arguments num + local num
                        RetsN             // Returns num
     );

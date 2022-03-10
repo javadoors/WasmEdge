@@ -121,6 +121,7 @@ public:
   void reset() noexcept {
     ValueStack.clear();
     FrameStack.clear();
+    // TailReturnCount = 0;
   }
 
 private:
@@ -128,6 +129,7 @@ private:
   /// @{
   std::vector<Value> ValueStack;
   std::vector<Frame> FrameStack;
+  // uint32_t TailReturnCount;
   /// @}
 };
 
